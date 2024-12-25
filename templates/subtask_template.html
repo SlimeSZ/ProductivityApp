@@ -1,0 +1,23 @@
+{% macro render_subtask(subtask, all_subtasks) %}
+<div class="subtask" style="margin-left: {{ subtask[11] * 20 }}px" data-subtask-id="{{ subtask[0] }}">
+    <input type="checkbox" 
+           onchange="toggleSubtask({{ subtask[0] }})"
+           {% if subtask[7] %}checked{% endif %}>
+    <strong {% if subtask[7] %}style="text-decoration: line-through"{% endif %}>
+        {{ subtask[1] }}
+    </strong>
+    {% if subtask[2] %} - {{ subtask[2] }}{% endif %}
+    {% if subtask[3] %}<br>Deadline: {{ subtask[3] }}{% endif %}
+    {% if subtask[5] and subtask[6] %}
+        <br>Duration: {{ subtask[5] }} - {{ subtask[6] }}
+    {% endif %}
+    | Priority: <span class="priority-{{ subtask[4] }}">{{ subtask[4] }}</span>
+    <button onclick="showSubtaskForm({{ subtask[9] }}, {{ subtask[0] }})">Add Subtask</button>
+    <button onclick="editSubtask({{ subtask[0] }})">Edit</button>
+    <button onclick="deleteSubtask({{ subtask[0] }})">Delete</button>
+    
+    {% for child in all_subtasks if child[10] == subtask[0] %}
+        {{ render_subtask(child, all_subtasks) }}
+    {% endfor %}
+</div>
+{% endmacro %}

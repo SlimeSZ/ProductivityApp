@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Dashboard</title>
+    <style>
+        .subtask { 
+            margin-left: 40px;
+            padding: 10px;
+            border-left: 2px solid #ccc;
+            margin-top: 5px;
+        }
+        .task-container { 
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #eee;
+            border-radius: 5px;
+        }
+        .category-section {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        .form-container {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .duration-container {
+            margin: 10px 0;
+            padding: 5px 0;
+        }
+        .duration-fields {
+            margin-top: 5px;
+            padding: 5px 0;
+        }
+        .hidden {
+            display: none;
+        }
+        input[type="text"],
+        input[type="datetime-local"],
+        input[type="time"],
+        select {
+            margin: 5px 0;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 200px;
+        }
+        button {
+            padding: 5px 10px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .priority-high {
+            color: #dc3545;
+        }
+        .priority-medium {
+            color: #ffc107;
+        }
+        .priority-low {
+            color: #28a745;
+        }
+        .priority-deepwork {
+            color: #6610f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Welcome to your Dashboard, {{ current_user.username }}!</h1>
+    <p><a href="{{ url_for('logout') }}">Logout</a> | <a href="{{ url_for('home') }}">Home</a></p>
+
+    <!-- Category Form -->
+    <div class="form-container">
+        <h2>Add Category</h2>
+        <form id="categoryForm">
+            <input type="text" name="category_name" placeholder="Category Name" required>
+            <button type="submit">Add Category</button>
+        </form>
+    </div>
+
+    <!-- Task Form -->
+    <div class="form-container">
+        <h2>Add Task</h2>
+        <form id="taskForm">
+            <select name="category_id" required>
+                <option value="">Select Category</option>
+                {% for category in categories %}
+                <option value="{{ category[0] }}">{{ category[1] }}</option>
+                {% endfor %}
+            </select>
+            <br>
+            <input type="text" name="task" placeholder="Task Name" required>
+            <br>
+            <input type="text" name="description" placeholder="Description">
+            <br>
+            <input type="datetime-local" name="deadline">
+            <br>
+            <div class="duration-container">
+                <label>
+                    <input type="checkbox" onchange="toggleDuration(this)"> Add Duration
+                </label>
+                <div class="duration-fields hidden">
+                    From: <input type="time" name="start_time">
+                    To: <input type="time" name="end_time">
+                </div>
+            </div>
+            <select name="priority" required>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="deepwork">Deep Work</option>
+            </select>
+            <br>
+            <button type="submit">Add Task</button>
+        </form>
+    </div>
+
+    <!-- Tasks Display -->
+    <!-- Tasks Display -->
+<!-- Tasks Display -->
+{% for category in categories %}
+<div class="category-section">
+    <h3>{{ category[1] }}</h3>
+    {% for task in tasks if task[8] == category[0] %}
+    <div class="task-container" data-task-id="{{ task[0] }}">
+        <div class="task">
+            <input type="checkbox" 
+                   onchange="toggleTask({{ task[0] }})"
+                   {% if task[7] %}checked{% endif %}>
+            <strong {% if task[7] %}style="text-decoration: line-through"{% endif %}>
+                {{ task[1] }}
+            </strong>
+            {% if task[2] %} - {{ task[2] }}{% endif %}
+            {% if task[3] %}<br>Deadline: {{ task[3] }}{% endif %}
+            {% if task[5] and task[6] %}
+                <br>Duration: {{ task[5] }} - {{ task[6] }}
+            {% endif %}
+            | Priority: <span class="priority-{{ task[4] }}">{{ task[4] }}</span>
+            <button onclick="showSubtaskForm({{ task[0] }}, null)">Add Subtask</button>
+            <button onclick="editTask({{ task[0] }})">Edit</button>
+            <button onclick="deleteTask({{ task[0] }})">Delete</button>
+        </div>
+        <div class="subtasks-container">
+            {% from 'subtask_template.html' import render_subtask %}
+            {% for subtask in subtasks if subtask[9] == task[0] and not subtask[10] %}
+                {{ render_subtask(subtask, subtasks) }}
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endfor %}
+
+    <!-- Subtask Form Template -->
+    <template id="subtaskFormTemplate">
+        <form class="subtask-form">
+            <input type="hidden" name="task_id">
+            <input type="hidden" name="parent_id">
+            <input type="hidden" name="category_id">
+            <input type="text" name="subtask" placeholder="Subtask Name" required>
+            <br>
+            <input type="text" name="description" placeholder="Description">
+            <br>
+            <input type="datetime-local" name="deadline">
+            <br>
+            <div class="duration-container">
+                <label>
+                    <input type="checkbox" onchange="toggleDuration(this)"> Add Duration
+                </label>
+                <div class="duration-fields hidden">
+                    From: <input type="time" name="start_time">
+                    To: <input type="time" name="end_time">
+                </div>
+            </div>
+            <select name="priority" required>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="deepwork">Deep Work</option>
+            </select>
+            <br>
+            <button type="submit">Add Subtask</button>
+            <button type="button" onclick="cancelSubtaskForm(this)">Cancel</button>
+        </form>
+    </template>
+
+    <script>
+        // Duration toggle function
+        function toggleDuration(checkbox) {
+            const durationFields = checkbox.closest('.duration-container').querySelector('.duration-fields');
+            durationFields.classList.toggle('hidden');
+            
+            if (checkbox.checked) {
+                // Set current time as default start time
+                const now = new Date();
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                const currentTime = `${hours}:${minutes}`;
+                
+                const startTimeInput = durationFields.querySelector('[name="start_time"]');
+                startTimeInput.value = currentTime;
+            }
+        }
+
+        // Add Category
+        document.getElementById('categoryForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            try {
+                const response = await fetch('/add-category', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    const categorySelect = document.querySelector('select[name="category_id"]');
+                    const option = document.createElement('option');
+                    option.value = data.id;
+                    option.textContent = data.name;
+                    categorySelect.appendChild(option);
+                    e.target.reset();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+
+        // Add Task
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            
+            // Only include time fields if duration is enabled
+            const durationCheckbox = e.target.querySelector('input[type="checkbox"]');
+            if (!durationCheckbox.checked) {
+                formData.delete('start_time');
+                formData.delete('end_time');
+            }
+            
+            try {
+                const response = await fetch('/add-task', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (response.ok) {
+                    window.location.reload();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+
+        // Show Subtask Form
+        function showSubtaskForm(taskId, parentId = null) {
+            const template = document.getElementById('subtaskFormTemplate');
+            const form = template.content.cloneNode(true).querySelector('form');
+            
+            form.querySelector('[name="task_id"]').value = taskId;
+            if (parentId) {
+                form.querySelector('[name="parent_id"]').value = parentId;
+            }
+            
+            // Add submit event listener
+            form.addEventListener('submit', handleSubtaskSubmit);
+            
+            // Find the appropriate container
+            const container = parentId 
+                ? document.querySelector(`[data-subtask-id="${parentId}"]`)
+                : document.querySelector(`[data-task-id="${taskId}"] .subtasks-container`);
+            container.appendChild(form);
+        }
+
+        // Handle Subtask Submit
+        async function handleSubtaskSubmit(e) {
+            e.preventDefault();
+            const form = e.target;
+            const formData = new FormData(form);
+            
+            // Only include time fields if duration is enabled
+            const durationCheckbox = form.querySelector('input[type="checkbox"]');
+            if (!durationCheckbox.checked) {
+                formData.delete('start_time');
+                formData.delete('end_time');
+            }
+
+            try {
+                const response = await fetch('/add-subtask', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (response.ok) {
+                    window.location.reload();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        // Cancel Subtask Form
+        function cancelSubtaskForm(button) {
+            button.closest('form').remove();
+        }
+
+        // Toggle subtask completion
+async function toggleSubtask(subtaskId) {
+    try {
+        const response = await fetch(`/toggle-subtask/${subtaskId}`);
+        if (response.ok) {
+            window.location.reload();
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+// Edit subtask
+async function editSubtask(subtaskId) {
+    try {
+        const response = await fetch(`/edit-subtask/${subtaskId}`);
+        if (response.ok) {
+            const subtask = await response.json();
+            // Implement edit form population and submission
+            // Similar to task edit functionality
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+// Delete subtask
+async function deleteSubtask(subtaskId) {
+    if (confirm('Are you sure you want to delete this subtask?')) {
+        try {
+            const response = await fetch(`/delete-subtask/${subtaskId}`);
+            if (response.ok) {
+                window.location.reload();
+            }
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+}
+    </script>
+</body>
+</html>
