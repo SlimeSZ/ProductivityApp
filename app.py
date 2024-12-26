@@ -166,6 +166,7 @@ def user_dashboard():
                              subtasks=subtasks)
     except Exception as e:
         print(f"Error: {e}")
+        return "Error loading dashboard", 500
     finally:
         if conn:
             conn.close()
@@ -206,63 +207,24 @@ def add_task():
         if conn:
             conn.close()
 
-#Create/Add sub-task function
-@app.route('/add-subtask', methods=['POST'])
-@login_required
-def add_subtask():
-    subtask_name = request.form.get('subtask')
-    description = request.form.get('description') or None
-    deadline = request.form.get('deadline') or None
-    priority = request.form.get('priority')
-    category_id = request.form.get('category_id')
-    task_id = request.form.get('task_id')
-    parent_id = request.form.get('parent_id')
-    start_time = request.form.get('start_time') or None
-    end_time = request.form.get('end_time') or None
-    if not subtask_name or not priority:
-        return jsonify({'error': 'Sub task name and priority are required'}), 400
-    try:
-        conn = sqlite3.connect('daytabase.db')
-        cursor = conn.cursor()
-        if parent_id:
-            cursor.execute('SELECT level FROM subtasks WHERE id = ?', (parent_id,))
-            parent_level = cursor.fetchone()[0]
-
-            level = parent_level + 1
-        else:
-            level = 1
-
-        cursor.execute('''
-        INSERT INTO subtasks (
-            subtask, description, deadline, priority, category_id, task_id, parent_id, level, start_time, end_time
-                       )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-''', (subtask_name, description, deadline, priority, category_id, task_id, parent_id, level, start_time, end_time))
-        conn.commit()
-
-
-        new_id = cursor.lastrowid
-        return jsonify({
-            'id': new_id,
-            'subtask': subtask_name,
-            'level': level,
-            'parent_id': parent_id
-        }), 200
-
-    except sqlite3.Error as e:
-        print(f"{e}")
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
-    finally:
-        if conn:
-            conn.close()
-
 @app.route('/toggle-task/<int:task_id>')
+@login_required
 def mark_task_done(task_id):
     try:
         conn = sqlite3.connect('daytabase.db')
         cursor = conn.cursor()
-        cursor.execute("UPDATE tasks SET done = NOT done WHERE id = ?", (task_id,))
+        
+        # Get current task status
+        cursor.execute("SELECT done FROM tasks WHERE id = ?", (task_id,))
+        current_status = cursor.fetchone()[0]
+        
+        # Toggle task status
+        new_status = not current_status
+        cursor.execute("UPDATE tasks SET done = ? WHERE id = ?", (new_status, task_id))
+        
+        # Mark all subtasks with the same status
+        mark_subtasks_as_done(cursor, task_id, new_status)
+        
         conn.commit()
         return jsonify({'success': True})
     except sqlite3.Error as e:
@@ -276,10 +238,104 @@ def mark_subtask_done(subtask_id):
     try:
         conn = sqlite3.connect('daytabase.db')
         cursor = conn.cursor()
-        cursor.execute("UPDATE subtasks SET done = NOT done WHERE id = ?", (subtask_id,))
+        
+        # Get current subtask status
+        cursor.execute("SELECT done FROM subtasks WHERE id = ?", (subtask_id,))
+        current_status = cursor.fetchone()[0]
+        
+        # Toggle subtask status
+        new_status = not current_status
+        cursor.execute("UPDATE subtasks SET done = ? WHERE id = ?", (new_status, subtask_id))
+        
+        # Mark all child subtasks with the same status
+        mark_child_subtasks_as_done(cursor, subtask_id, new_status)
+        
         conn.commit()
         return jsonify({'success': True})
     except sqlite3.Error as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        if conn:
+            conn.close()
+
+def mark_subtasks_as_done(cursor, task_id, status):
+    # Mark all direct subtasks of the task
+    cursor.execute("UPDATE subtasks SET done = ? WHERE task_id = ?", (status, task_id))
+    
+    # Get all direct subtasks
+    cursor.execute("SELECT id FROM subtasks WHERE task_id = ?", (task_id,))
+    subtasks = cursor.fetchall()
+    
+    # Recursively mark child subtasks
+    for subtask in subtasks:
+        mark_child_subtasks_as_done(cursor, subtask[0], status)
+
+def mark_child_subtasks_as_done(cursor, parent_subtask_id, status):
+    # Mark all child subtasks using recursive CTE
+    cursor.execute("""
+        WITH RECURSIVE subtree AS (
+            SELECT id, parent_id 
+            FROM subtasks 
+            WHERE parent_id = ?
+            UNION ALL
+            SELECT s.id, s.parent_id
+            FROM subtasks s
+            JOIN subtree st ON s.parent_id = st.id
+        )
+        UPDATE subtasks 
+        SET done = ?
+        WHERE id IN (SELECT id FROM subtree)
+    """, (parent_subtask_id, status))
+
+#Create/Add sub-task function
+@app.route('/add-subtask', methods=['POST'])
+@login_required
+def add_subtask():
+    subtask_name = request.form.get('subtask')
+    description = request.form.get('description') or None
+    deadline = request.form.get('deadline') or None
+    priority = request.form.get('priority')
+    category_id = request.form.get('category_id')
+    task_id = request.form.get('task_id')
+    parent_id = request.form.get('parent_id')
+    start_time = request.form.get('start_time') or None
+    end_time = request.form.get('end_time') or None
+    
+    if not subtask_name or not priority:
+        return jsonify({'error': 'Sub task name and priority are required'}), 400
+    
+    try:
+        conn = sqlite3.connect('daytabase.db')
+        cursor = conn.cursor()
+        
+        if parent_id:
+            cursor.execute('SELECT level FROM subtasks WHERE id = ?', (parent_id,))
+            parent_level = cursor.fetchone()[0]
+            level = parent_level + 1
+        else:
+            level = 1
+
+        cursor.execute('''
+        INSERT INTO subtasks (
+            subtask, description, deadline, priority, 
+            category_id, task_id, parent_id, level, 
+            start_time, end_time, done
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (subtask_name, description, deadline, priority, 
+              category_id, task_id, parent_id, level, 
+              start_time, end_time, False))
+        conn.commit()
+
+        new_id = cursor.lastrowid
+        return jsonify({
+            'id': new_id,
+            'subtask': subtask_name,
+            'level': level,
+            'parent_id': parent_id
+        }), 200
+
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
         return jsonify({'error': str(e)}), 400
     finally:
         if conn:
