@@ -41,6 +41,51 @@
         font-family: 'Inter', sans-serif;
     }
 
+    /* Add or update these styles in your CSS */
+.add-subtask {
+    position: absolute;
+    bottom: 10%;
+    right: 10%;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-speed);
+    opacity: 1;  /* Changed from 0 to always be visible */
+    z-index: 10;  /* Ensure it's above other elements */
+}
+
+.add-subtask:hover {
+    transform: scale(1.1);
+    background: var(--btn-hover);
+}
+
+/* Ensure the form overlay is properly positioned */
+.form-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 999;
+}
+
+/* Ensure the subtask form is properly positioned */
+#subtaskForm {
+    z-index: 1000;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
     /* Header Styles */
     .header {
         background-color: var(--header-bg);
@@ -116,7 +161,7 @@
         box-shadow: 0 4px 12px rgba(0,0,0,0.2);
     }
     /* Zone Dropdown */
-.zone-dropdown {
+    .zone-dropdown {
     position: relative;
     display: inline-block;
 }
@@ -132,6 +177,25 @@
     top: 100%;
     left: 0;
     margin-top: 0.5rem;
+    /* Add these properties */
+    padding-top: 8px;
+    margin-top: -8px; /* Negative margin to offset the padding */
+}
+
+.zone-dropdown:hover .zone-dropdown-content {
+    display: block;
+    animation: fadeIn var(--transition-speed);
+}
+
+/* Optional: Add this if you want a smoother appearance */
+.zone-dropdown-content::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 8px;
+    background: transparent;
 }
 
 .zone-dropdown-content a {
@@ -149,6 +213,15 @@
 .zone-dropdown:hover .zone-dropdown-content {
     display: block;
     animation: fadeIn var(--transition-speed);
+}
+
+/* Add this to your CSS section */
+.bubble-grid {
+    display: none; /* Initially hide tasks */
+}
+
+.bubble-grid.active {
+    display: flex; /* Show when active */
 }
 
 @keyframes fadeIn {
@@ -188,19 +261,76 @@
     left: 50%;
     transform: translate(-50%, -50%);
     background: var(--header-bg);
-    padding: 2rem;
-    border-radius: 8px;
+    padding: 2.5rem;
+    border-radius: 12px;
     z-index: 1000;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
     width: 90%;
-    max-width: 500px;
+    max-width: 450px;
 }
 
-.modal-form input,
+.modal-form h2 {
+    margin: 0 0 1.5rem 0;
+    font-size: 1.8rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.modal-form input:not([type="checkbox"]),
 .modal-form select {
     width: 100%;
-    margin-bottom: 1rem;
+    margin-bottom: 1.2rem;
+    padding: 0.8rem 1rem;
+    background: var(--dark-bg);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 1rem;
+    transition: all 0.3s ease;
 }
+
+.duration-container {
+    background: var(--dark-bg);
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.2rem;
+}
+
+.duration-container label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+
+.duration-container input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+}
+
+.duration-fields {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: var(--bubble-bg);
+    border-radius: 6px;
+    display: grid;
+    gap: 1rem;
+}
+
+.duration-fields label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.modal-form input:focus,
+.modal-form select:focus {
+    outline: none;
+    border-color: #4a9eff;
+    box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
+}
+
 
 .duration-fields {
     margin-top: 0.5rem;
@@ -212,8 +342,32 @@
 .form-buttons {
     display: flex;
     gap: 1rem;
-    justify-content: flex-end;
-    margin-top: 1rem;
+    margin-top: 2rem;
+}
+
+.form-buttons button {
+    flex: 1;
+    padding: 0.8rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.form-buttons button[type="submit"] {
+    background: #4a9eff;
+    color: white;
+}
+
+.form-buttons button[type="button"] {
+    background: var(--btn-bg);
+    color: var(--text-secondary);
+}
+
+.form-buttons button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
 
 .hidden {
@@ -271,6 +425,89 @@
 .connector-horizontal {
     height: 2px;
     top: -1rem;
+}
+
+/* Zone Grid Styles */
+.zones-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.zone-box {
+    flex: 0 0 calc(33.333% - 1rem);  /* Make boxes equal width, 3 per row */
+    min-height: 150px;  /* Give boxes a minimum height */
+    background: var(--bubble-bg);
+    border-radius: 8px;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.zone-box::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        45deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.05) 50%,
+        transparent 100%
+    );
+    transform: translateX(-100%);
+    transition: transform 0.6s ease;
+}
+
+.zone-box:hover::before {
+    transform: translateX(100%);
+}
+
+.zone-box:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+    background: var(--bubble-hover);
+}
+
+.add-zone-box {
+    border: 2px dashed var(--accent);
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.add-zone-box:hover {
+    border-color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.add-zone-icon {
+    font-size: 2rem;
+    color: var(--accent);
+}
+
+/* Hide Current Zone by default */
+.current-zone {
+    display: none;
+}
+
+/* Show Current Zone when a zone is active */
+.current-zone.active {
+    display: block;
 }
 
 /* Add some hover effects for the connections */
@@ -443,11 +680,26 @@
             <div class="zone-dropdown-content">
                 {% for category in categories %}
                     <a href="#" 
-                       onclick="switchZone('{{ category[1] }}')"
+                       onclick="return switchZone('{{ category[1] }}')"
                        data-category-id="{{ category[0] }}">
                         {{ category[1] }}
                     </a>
                 {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Zone Grid right here -->
+    <div class="zones-grid">
+        {% for category in categories %}
+            <div class="zone-box" onclick="switchZone('{{ category[1] }}')">
+                <h3 style="margin: 0; color: var(--text-primary);">{{ category[1] }}</h3>
+            </div>
+        {% endfor %}
+        <div class="zone-box add-zone-box" onclick="showAddZoneForm()">
+            <div style="text-align: center;">
+                <span class="add-zone-icon">+</span>
+                <span style="display: block; margin-top: 0.5rem;">Add Zone</span>
             </div>
         </div>
     </div>
@@ -470,119 +722,135 @@
     </form>
 
     <!-- Tasks Grid -->
-    {% macro render_subtask(subtask, all_subtasks) %}
-    <div class="subtask-branch">
+{% macro render_subtask(subtask, all_subtasks) %}
+<div class="subtask-branch">
+    <div class="task-bubble" 
+         onclick="toggleFlip(this)" 
+         data-task-id="{{ subtask[0] }}"
+         data-category-id="{{ subtask[8] }}">
+        <div class="connector connector-vertical"></div>
+        <div class="task-front">
+            <h3 class="task-name">{{ subtask[1] }}</h3>
+            <div class="task-priority priority-{{ subtask[4] }}">Priority: {{ subtask[4] }}</div>
+        </div>
+        <div class="task-back">
+            <div class="task-details">
+                {% if subtask[2] %}<p>{{ subtask[2] }}</p>{% endif %}
+                {% if subtask[3] %}<p>Deadline: {{ subtask[3] }}</p>{% endif %}
+                {% if subtask[5] and subtask[6] %}
+                    <p>Duration: {{ subtask[5] }} - {{ subtask[6] }}</p>
+                {% endif %}
+            </div>
+        </div>
+        <button class="add-subtask" onclick="event.stopPropagation(); showSubtaskForm({{ subtask[9] }}, {{ subtask[0] }}, event)">+</button>
+    </div>
+    
+    {% set child_subtasks = [] %}
+    {% for child in all_subtasks if child[10] == subtask[0] %}
+        {% set _ = child_subtasks.append(child) %}
+    {% endfor %}
+    
+    {% if child_subtasks %}
+    <div class="subtasks-container">
+        <div class="connector connector-horizontal" style="width: {{ (child_subtasks|length * 250 - 50)|abs }}px"></div>
+        {% for child in child_subtasks %}
+            {{ render_subtask(child, all_subtasks) }}
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}
+    
+    <!-- Main Tasks Grid -->
+<div class="bubble-grid">
+    {% for task in tasks %}
+    <div class="task-group">
         <div class="task-bubble" 
              onclick="toggleFlip(this)" 
-             data-task-id="{{ subtask[0] }}"
-             data-category-id="{{ subtask[8] }}">
-            <div class="connector connector-vertical"></div>
+             data-task-id="{{ task[0] }}"
+             data-category-id="{{ task[8] }}">
             <div class="task-front">
-                <h3 class="task-name">{{ subtask[1] }}</h3>
-                <div class="task-priority priority-{{ subtask[4] }}">Priority: {{ subtask[4] }}</div>
+                <h3 class="task-name">{{ task[1] }}</h3>
+                <div class="task-priority priority-{{ task[4] }}">Priority: {{ task[4] }}</div>
             </div>
             <div class="task-back">
                 <div class="task-details">
-                    {% if subtask[2] %}<p>{{ subtask[2] }}</p>{% endif %}
-                    {% if subtask[3] %}<p>Deadline: {{ subtask[3] }}</p>{% endif %}
-                    {% if subtask[5] and subtask[6] %}
-                        <p>Duration: {{ subtask[5] }} - {{ subtask[6] }}</p>
+                    {% if task[2] %}<p>{{ task[2] }}</p>{% endif %}
+                    {% if task[3] %}<p>Deadline: {{ task[3] }}</p>{% endif %}
+                    {% if task[5] and task[6] %}
+                        <p>Duration: {{ task[5] }} - {{ task[6] }}</p>
                     {% endif %}
                 </div>
             </div>
-            <button class="add-subtask" onclick="event.stopPropagation(); showSubtaskForm({{ subtask[9] }}, {{ subtask[0] }})">+</button>
+            <button class="add-subtask" onclick="event.stopPropagation(); showSubtaskForm({{ task[0] }}, null, event)">+</button>
         </div>
         
-        {% set child_subtasks = [] %}
-        {% for child in all_subtasks if child[10] == subtask[0] %}
-            {% set _ = child_subtasks.append(child) %}
+        {% set direct_subtasks = [] %}
+        {% for subtask in subtasks if subtask[9] == task[0] and not subtask[10] %}
+            {% set _ = direct_subtasks.append(subtask) %}
         {% endfor %}
         
-        {% if child_subtasks %}
+        {% if direct_subtasks %}
         <div class="subtasks-container">
-            <div class="connector connector-horizontal" style="width: {{ (child_subtasks|length * 250 - 50)|abs }}px"></div>
-            {% for child in child_subtasks %}
-                {{ render_subtask(child, all_subtasks) }}
+            <div class="connector connector-horizontal" style="width: {{ (direct_subtasks|length * 250 - 50)|abs }}px"></div>
+            {% for subtask in direct_subtasks %}
+                {{ render_subtask(subtask, subtasks) }}
             {% endfor %}
         </div>
         {% endif %}
     </div>
-    {% endmacro %}
-    
-    <!-- Main Tasks Grid -->
-    <div class="bubble-grid">
-        {% for task in tasks %}
-        <div class="task-group">
-            <div class="task-bubble" 
-                 onclick="toggleFlip(this)" 
-                 data-task-id="{{ task[0] }}"
-                 data-category-id="{{ task[8] }}">
-                <div class="task-front">
-                    <h3 class="task-name">{{ task[1] }}</h3>
-                    <div class="task-priority priority-{{ task[4] }}">Priority: {{ task[4] }}</div>
-                </div>
-                <div class="task-back">
-                    <div class="task-details">
-                        {% if task[2] %}<p>{{ task[2] }}</p>{% endif %}
-                        {% if task[3] %}<p>Deadline: {{ task[3] }}</p>{% endif %}
-                        {% if task[5] and task[6] %}
-                            <p>Duration: {{ task[5] }} - {{ task[6] }}</p>
-                        {% endif %}
-                    </div>
-                </div>
-                <button class="add-subtask" onclick="event.stopPropagation(); showSubtaskForm({{ task[0] }}, null)">+</button>
-            </div>
-            
-            {% set direct_subtasks = [] %}
-            {% for subtask in subtasks if subtask[9] == task[0] and not subtask[10] %}
-                {% set _ = direct_subtasks.append(subtask) %}
-            {% endfor %}
-            
-            {% if direct_subtasks %}
-            <div class="subtasks-container">
-                <div class="connector connector-horizontal" style="width: {{ (direct_subtasks|length * 250 - 50)|abs }}px"></div>
-                {% for subtask in direct_subtasks %}
-                    {{ render_subtask(subtask, subtasks) }}
-                {% endfor %}
-            </div>
-            {% endif %}
-        </div>
-        {% endfor %}
-    </div>
+    {% endfor %}
+</div>
+
+
     <!-- Task Form -->
 <div class="form-overlay" id="taskFormOverlay"></div>
 <form id="taskForm" class="modal-form" style="display: none;">
     <h2>Add Task</h2>
+    
     <select name="category_id" required>
-        <option value="">Select Category</option>
+        <option value="">Select Zone</option>
         {% for category in categories %}
             <option value="{{ category[0] }}">{{ category[1] }}</option>
         {% endfor %}
     </select>
+    
     <input type="text" name="task" placeholder="Task Name" required>
     <input type="text" name="description" placeholder="Description">
     <input type="datetime-local" name="deadline">
+    
     <div class="duration-container">
         <label>
-            <input type="checkbox" onchange="toggleDuration(this)"> Add Duration
+            <input type="checkbox" onchange="toggleDuration(this)">
+            <span>Add Duration</span>
         </label>
+        
         <div class="duration-fields hidden">
-            From: <input type="time" name="start_time">
-            To: <input type="time" name="end_time">
+            <label>
+                From
+                <input type="time" name="start_time">
+            </label>
+            <label>
+                To
+                <input type="time" name="end_time">
+            </label>
         </div>
     </div>
+    
     <select name="priority" required>
-        <option value="low">Low</option>
-        <option value="medium">Medium</option>
-        <option value="high">High</option>
+        <option value="low">Low Priority</option>
+        <option value="medium">Medium Priority</option>
+        <option value="high">High Priority</option>
         <option value="deepwork">Deep Work</option>
     </select>
+    
     <div class="form-buttons">
-        <button type="submit" class="zone-btn">Add Task</button>
-        <button type="button" class="zone-btn" onclick="hideTaskForm()">Cancel</button>
+        <button type="submit">Add Task</button>
+        <button type="button" onclick="hideTaskForm()">Cancel</button>
     </div>
+</form>
 
-    <!-- Subtask Form -->
+    <!-- Subtask Form (separate from task form) -->
 <div class="form-overlay" id="subtaskFormOverlay"></div>
 <form id="subtaskForm" class="modal-form" style="display: none;">
     <h2>Add Subtask</h2>
@@ -612,20 +880,22 @@
         <button type="button" class="zone-btn" onclick="hideSubtaskForm()">Cancel</button>
     </div>
 </form>
-</form>
 </main>
 
 <script>
 
     // Task Form Functions
-function showTaskForm() {
+    function showTaskForm() {
     document.getElementById('taskForm').style.display = 'block';
     document.getElementById('taskFormOverlay').style.display = 'block';
 }
 
 function hideTaskForm() {
-    document.getElementById('taskForm').style.display = 'none';
-    document.getElementById('taskFormOverlay').style.display = 'none';
+    const form = document.getElementById('taskForm');
+    const overlay = document.getElementById('taskFormOverlay');
+    form.style.display = 'none';
+    overlay.style.display = 'none';
+    form.reset();
 }
 
 function toggleDuration(checkbox) {
@@ -648,19 +918,15 @@ document.getElementById('taskForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
     
-    // Only include time fields if duration is enabled
-    const durationCheckbox = e.target.querySelector('input[type="checkbox"]');
-    if (!durationCheckbox.checked) {
-        formData.delete('start_time');
-        formData.delete('end_time');
-    }
-    
     try {
         const response = await fetch('/add-task', {
             method: 'POST',
             body: formData
         });
         if (response.ok) {
+            // Store the current zone before reload
+            const currentZone = document.getElementById('zoneName').textContent;
+            localStorage.setItem('currentZone', currentZone);
             window.location.reload();
         }
     } catch (error) {
@@ -701,17 +967,31 @@ document.getElementById('taskForm').addEventListener('submit', async (e) => {
         return false;
     }
 
-    // Switch Zone Function
-    function switchZone(zoneName) {
-        // Implementation will be added
-        console.log('Switching to zone:', zoneName);
-    }
 
     // Subtask Functions
-    function showSubtaskForm(taskId, parentId) {
-        // Implementation will be added
-        console.log('Show subtask form for task:', taskId, 'parent:', parentId);
+    function showSubtaskForm(taskId, parentId, event) {
+    if (event) {
+        event.stopPropagation();
     }
+    
+    const form = document.getElementById('subtaskForm');
+    const overlay = document.getElementById('subtaskFormOverlay');
+    
+    // Set the hidden input values
+    form.querySelector('[name="task_id"]').value = taskId;
+    form.querySelector('[name="parent_id"]').value = parentId || '';
+    
+    // Get the category_id from the parent task bubble
+    const taskElement = document.querySelector(`[data-task-id="${taskId}"]`);
+    if (taskElement) {
+        const categoryId = taskElement.getAttribute('data-category-id');
+        form.querySelector('[name="category_id"]').value = categoryId;
+    }
+    
+    // Show form and overlay
+    form.style.display = 'block';
+    overlay.style.display = 'block';
+}
 
     // Keep existing toggle, edit, and delete functions
     async function toggleTask(taskId) {
@@ -763,76 +1043,96 @@ document.getElementById('taskForm').addEventListener('submit', async (e) => {
     }
 
     // Subtask Form Functions
-function showSubtaskForm(taskId, parentId) {
-    const form = document.getElementById('subtaskForm');
-    form.style.display = 'block';
-    document.getElementById('subtaskFormOverlay').style.display = 'block';
-    
-    // Set the hidden input values
-    form.querySelector('[name="task_id"]').value = taskId;
-    form.querySelector('[name="parent_id"]').value = parentId || '';
-    
-    // Get the category_id from the parent task
-    const taskElement = document.querySelector(`[data-task-id="${taskId}"]`);
-    const categoryId = taskElement.getAttribute('data-category-id');
-    form.querySelector('[name="category_id"]').value = categoryId;
-}
 
 function hideSubtaskForm() {
-    document.getElementById('subtaskForm').style.display = 'none';
-    document.getElementById('subtaskFormOverlay').style.display = 'none';
+    const form = document.getElementById('subtaskForm');
+    const overlay = document.getElementById('subtaskFormOverlay');
+    form.style.display = 'none';
+    overlay.style.display = 'none';
+    form.reset();
 }
 
-// Zone Switching Functions
 function switchZone(zoneName) {
     // Update zone name display
     document.getElementById('zoneName').textContent = zoneName;
     
-    // Get all task bubbles
-    const bubbles = document.querySelectorAll('.task-bubble');
+    // Show the current zone indicator and bubble grid
+    document.getElementById('currentZone').classList.add('active');
+    document.querySelector('.bubble-grid').classList.add('active');
     
-    bubbles.forEach(bubble => {
-        const categoryId = bubble.getAttribute('data-category-id');
+    // Get all task groups
+    const taskGroups = document.querySelectorAll('.task-group');
+    
+    taskGroups.forEach(group => {
+        const taskBubble = group.querySelector('.task-bubble');
+        const categoryId = taskBubble.getAttribute('data-category-id');
         const categoryName = getCategoryName(categoryId);
         
         if (zoneName === 'All Tasks' || categoryName === zoneName) {
-            bubble.style.display = 'flex';
-            // Add fade-in animation
-            bubble.style.animation = 'fadeIn 0.3s forwards';
+            group.style.display = 'flex';
+            group.style.animation = 'fadeIn 0.3s forwards';
         } else {
-            bubble.style.display = 'none';
+            group.style.display = 'none';
         }
     });
+
+    // Store current zone in localStorage
+    localStorage.setItem('currentZone', zoneName);
+
+    // Hide the zones grid
+    document.querySelector('.zones-grid').style.display = 'none';
+
+    return false;
 }
 
 function getCategoryName(categoryId) {
-    // Find the category name in the dropdown
-    const categoryLink = document.querySelector(`[data-category-id="${categoryId}"]`);
-    return categoryLink ? categoryLink.textContent : null;
+    // First try to find in dropdown
+    const categoryLink = document.querySelector(`.zone-dropdown-content a[data-category-id="${categoryId}"]`);
+    if (categoryLink) {
+        return categoryLink.textContent.trim();
+    }
+    // If not found and it's "all", return "All Tasks"
+    if (categoryId === 'all') {
+        return 'All Tasks';
+    }
+    return null;
 }
 
 // Add this to your zone dropdown HTML generation
 document.addEventListener('DOMContentLoaded', function() {
+    // Hide tasks and current zone indicator by default
+    const currentZone = document.getElementById('currentZone');
+    const bubbleGrid = document.querySelector('.bubble-grid');
+    const zonesGrid = document.querySelector('.zones-grid');
+    
+    // Initial state setup
+    currentZone.style.display = 'none';
+    bubbleGrid.style.display = 'none';
+    zonesGrid.style.display = 'grid';  // Changed to grid
+
     // Add "All Tasks" option to zone dropdown
     const dropdownContent = document.querySelector('.zone-dropdown-content');
-    const allTasksLink = document.createElement('a');
-    allTasksLink.href = '#';
-    allTasksLink.onclick = () => switchZone('All Tasks');
-    allTasksLink.textContent = 'All Tasks';
-    dropdownContent.insertBefore(allTasksLink, dropdownContent.firstChild);
+    if (!dropdownContent.querySelector('[data-category-id="all"]')) {
+        const allTasksLink = document.createElement('a');
+        allTasksLink.href = '#';
+        allTasksLink.onclick = () => switchZone('All Tasks');
+        allTasksLink.textContent = 'All Tasks';
+        allTasksLink.setAttribute('data-category-id', 'all');
+        dropdownContent.insertBefore(allTasksLink, dropdownContent.firstChild);
+    }
+
+    // Only switch zone if it's not the initial load
+    const lastZone = localStorage.getItem('currentZone');
+    if (lastZone && lastZone !== 'initial') {
+        switchZone(lastZone);
+    }
 });
 
+// Initialize with 'initial' state
 // Add event listener for subtask form
 document.getElementById('subtaskForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    
-    // Only include time fields if duration is enabled
-    const durationCheckbox = e.target.querySelector('input[type="checkbox"]');
-    if (!durationCheckbox.checked) {
-        formData.delete('start_time');
-        formData.delete('end_time');
-    }
     
     try {
         const response = await fetch('/add-subtask', {
@@ -840,11 +1140,16 @@ document.getElementById('subtaskForm').addEventListener('submit', async (e) => {
             body: formData
         });
         if (response.ok) {
+            // Store the current zone before reload
+            const currentZone = document.getElementById('zoneName').textContent;
+            localStorage.setItem('currentZone', currentZone);
             window.location.reload();
         }
     } catch (error) {
         console.error('Error:', error);
     }
 });
+
+
 </script>
 {% endblock %}

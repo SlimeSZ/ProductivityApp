@@ -12,7 +12,7 @@
         <br>Duration: {{ subtask[5] }} - {{ subtask[6] }}
     {% endif %}
     | Priority: <span class="priority-{{ subtask[4] }}">{{ subtask[4] }}</span>
-    <button onclick="showSubtaskForm({{ subtask[9] }}, {{ subtask[0] }})">Add Subtask</button>
+    <button onclick="event.stopPropagation(); showSubtaskForm({{ subtask[9] }}, {{ subtask[0] }}, event)">Add Subtask</button>
     <button onclick="editSubtask({{ subtask[0] }})">Edit</button>
     <button onclick="deleteSubtask({{ subtask[0] }})">Delete</button>
     

@@ -144,6 +144,7 @@ def user_dashboard():
         
         cursor.execute('SELECT * FROM categories')
         categories = cursor.fetchall()
+        print("Categories:", categories)
         
         cursor.execute('''
         SELECT t.*, c.name as category_name 
@@ -152,25 +153,19 @@ def user_dashboard():
         ORDER BY t.id DESC
         ''')
         tasks = cursor.fetchall()
-        
-        cursor.execute('''
-        SELECT * FROM subtasks 
-        ORDER BY task_id, level, id
-        ''')
-        subtasks = cursor.fetchall()
-        print("Subtasks:", subtasks)  
+        print("Tasks with categories:", tasks)  # Debug print
         
         return render_template('user_dashboard.html', 
                              categories=categories,
-                             tasks=tasks,
-                             subtasks=subtasks)
+                             tasks=tasks)
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Dashboard Error: {e}")
         return "Error loading dashboard", 500
     finally:
         if conn:
             conn.close()
 
+            
 #CRUD
 #Create/Add task function
 @app.route('/add-task', methods=['POST'])
@@ -179,16 +174,22 @@ def add_task():
     description = request.form.get('description') or None
     deadline = request.form.get('deadline') or None
     priority = request.form.get('priority')
-    category_id = request.form.get('category_id')
+    category_id = request.form.get('category_id')  # Make sure this is passed correctly
     start_time = request.form.get('start_time') or None
     end_time = request.form.get('end_time') or None
     
-    if not task_name or not priority:
-        return jsonify({'error': 'Task name and priority are required'}), 400
+    if not task_name or not priority or not category_id:  # Added category_id check
+        return jsonify({'error': 'Task name, priority, and category are required'}), 400
         
     try:
         conn = sqlite3.connect('daytabase.db')
         cursor = conn.cursor()
+        
+        # First verify the category exists
+        cursor.execute('SELECT id FROM categories WHERE id = ?', (category_id,))
+        if not cursor.fetchone():
+            return jsonify({'error': 'Invalid category'}), 400
+            
         cursor.execute('''
         INSERT INTO tasks (
             task, description, deadline, priority, 
