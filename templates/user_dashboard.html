@@ -416,14 +416,28 @@
     flex-direction: column;
     align-items: center;
     gap: 2rem;
+    transition: all var(--transition-speed);
+}
+
+.task-group[data-expanded="true"] .task-bubble {
+    transform: scale(1.05);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+    z-index: 2; /* Makes expanded task appear above others */
+}
+
+.task-group[data-expanded="true"] .subtasks-container {
+    animation: fadeIn 0.3s forwards;
+    display: flex; /* Ensures proper layout when visible */
 }
 
 .subtasks-container {
+    display: none;  /* Hidden by default */
     position: relative;
-    display: flex;
+    width: 100%;
     justify-content: center;
     gap: 2rem;
     padding-top: 2rem;
+    margin-top: 1rem;
 }
 
 .subtask-branch {
@@ -792,24 +806,24 @@
     {% endfor %}
     
     {% if child_subtasks %}
-    <div class="subtasks-container">
-        <div class="connector connector-horizontal" style="width: {{ (child_subtasks|length * 250 - 50)|abs }}px"></div>
-        {% for child in child_subtasks %}
-            {{ render_subtask(child, all_subtasks) }}
-        {% endfor %}
-    </div>
-    {% endif %}
+<div class="subtasks-container" style="display: none;">
+    <div class="connector connector-horizontal" style="width: {{ (child_subtasks|length * 250 - 50)|abs }}px"></div>
+    {% for child in child_subtasks %}
+        {{ render_subtask(child, all_subtasks) }}
+    {% endfor %}
+</div>
+{% endif %}
 </div>
 {% endmacro %}
     
     <!-- Main Tasks Grid -->
-<div class="bubble-grid">
-    {% for task in tasks %}
-    <div class="task-group">
-        <div class="task-bubble" 
-        onclick="toggleFlip(this)" 
-        data-task-id="{{ task[0] }}"
-        data-category-id="{{ task[8] }}">
+    <div class="bubble-grid">
+        {% for task in tasks %}
+        <div class="task-group" data-expanded="false">
+            <div class="task-bubble" 
+                 onclick="toggleExpandTask(this, event)" 
+                 data-task-id="{{ task[0] }}"
+                 data-category-id="{{ task[8] }}">
         <div class="task-controls" onclick="event.stopPropagation()">
             <input type="checkbox" 
                    class="task-checkbox" 
@@ -846,7 +860,7 @@
         {% endfor %}
         
         {% if direct_subtasks %}
-        <div class="subtasks-container">
+        <div class="subtasks-container" style="display: none;">
             <div class="connector connector-horizontal" style="width: {{ (direct_subtasks|length * 250 - 50)|abs }}px"></div>
             {% for subtask in direct_subtasks %}
                 {{ render_subtask(subtask, subtasks) }}
@@ -970,9 +984,13 @@ function toggleDuration(checkbox) {
 
     // Toggle task bubble flip
     function toggleFlip(bubble) {
-        bubble.classList.toggle('is-flipped');
+    // Don't flip if the parent task group isn't expanded
+    const taskGroup = bubble.closest('.task-group');
+    if (taskGroup && !taskGroup.hasAttribute('data-expanded')) {
+        return;
     }
-
+    bubble.classList.toggle('is-flipped');
+}
     // Zone Form Functions
     function showAddZoneForm() {
         document.getElementById('categoryForm').style.display = 'block';
@@ -1001,6 +1019,33 @@ function toggleDuration(checkbox) {
         return false;
     }
 
+    function toggleExpandTask(taskBubble, event) {
+    // Don't expand if clicking controls or add button
+    if (event.target.closest('.task-controls') || event.target.closest('.add-subtask')) {
+        return;
+    }
+
+    const taskGroup = taskBubble.closest('.task-group');
+    const isExpanded = taskGroup.getAttribute('data-expanded') === 'true';
+    
+    // First collapse all task groups
+    document.querySelectorAll('.task-group').forEach(group => {
+        group.setAttribute('data-expanded', 'false');
+        const subtasksContainer = group.querySelector('.subtasks-container');
+        if (subtasksContainer) {
+            subtasksContainer.style.display = 'none';
+        }
+    });
+
+    // Then expand the clicked one if it wasn't already expanded
+    if (!isExpanded) {
+        taskGroup.setAttribute('data-expanded', 'true');
+        const subtasksContainer = taskGroup.querySelector('.subtasks-container');
+        if (subtasksContainer) {
+            subtasksContainer.style.display = 'flex';
+        }
+    }
+}
 
     // Subtask Functions
     function showSubtaskForm(taskId, parentId, event) {
