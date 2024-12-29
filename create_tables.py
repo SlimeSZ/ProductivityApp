@@ -74,6 +74,20 @@ def create_tables():
             FOREIGN KEY (parent_id) REFERENCES subtasks(id) ON DELETE CASCADE
         )
         ''')
+
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS completed (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        task_name TEXT NOT NULL,
+        task_description TEXT,
+        is_subtask BOOLEAN NOT NULL,
+        parent_task_name TEXT,
+        user_id INTEGER NOT NULL,
+        completed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        ''')
         
         print("Tables created successfully!")
         conn.commit()

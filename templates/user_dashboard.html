@@ -696,19 +696,6 @@
     .priority-deepwork { color: #6610f2; }
 </style>
 
-<header class="header">
-    <a href="{{ url_for('home') }}" class="logo">Zenix</a>
-    <nav class="nav-links">
-        {% if current_user.is_authenticated %}
-            <a href="{{ url_for('user_dashboard') }}">Dashboard</a>
-            <a href="{{ url_for('logout') }}">Logout</a>
-        {% else %}
-            <a href="{{ url_for('login') }}">Login</a>
-            <a href="{{ url_for('register_account') }}">Register</a>
-        {% endif %}
-    </nav>
-</header>
-
 <main>
     <h1 class="workspace-title">{{ current_user.username }}'s Workspace</h1>
     

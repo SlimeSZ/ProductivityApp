@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Journal{% endblock %}
+
+{% block content %}
+<style>
+    .journal-entry {
+        margin-bottom: 2rem;
+    }
+    
+    .date-header {
+        color: var(--text-primary);
+        font-size: 1.5rem;
+        margin: 2rem 0 1rem 0;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--accent);
+    }
+    
+    .task-entry {
+        margin: 1rem 0;
+    }
+    
+    .task-name {
+        font-size: 1.2rem;
+        color: var(--text-primary);
+    }
+    
+    .task-description {
+        color: var(--text-secondary);
+        margin: 0.5rem 0;
+    }
+    
+    .subtask-entry {
+        margin-left: 2rem;
+    }
+    
+    .subtask-name {
+        color: #28a745;  /* Green color for subtasks */
+        font-size: 1.1rem;
+    }
+    
+    .subtask-description {
+        color: var(--text-secondary);
+        margin: 0.5rem 0;
+    }
+</style>
+
+<div class="journal-container">
+    {% for date, entries in achievements.items() %}
+        <div class="journal-entry">
+            <h2 class="date-header">{{ date }}</h2>
+            {% for entry in entries %}
+                {% if not entry.is_subtask %}
+                    <div class="task-entry">
+                        <div class="task-name">{{ entry.task_name }}</div>
+                        {% if entry.task_description %}
+                            <div class="task-description">{{ entry.task_description }}</div>
+                        {% endif %}
+                        
+                        <!-- Subtasks for this task -->
+                        {% for subtask in entries if subtask.is_subtask and subtask.parent_task_name == entry.task_name %}
+                            <div class="subtask-entry">
+                                <div class="subtask-name">• {{ subtask.task_name }}</div>
+                                {% if subtask.task_description %}
+                                    <div class="subtask-description">{{ subtask.task_description }}</div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}
