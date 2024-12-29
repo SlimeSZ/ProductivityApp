@@ -116,6 +116,7 @@ def register_account():
 
 #Add category func
 @app.route('/add-category', methods=['POST'])
+@login_required  # Add this decorator
 def add_category():
     category_name = request.form.get('category_name')
     if not category_name:
@@ -124,7 +125,8 @@ def add_category():
     try:
         conn = sqlite3.connect('daytabase.db')
         cursor = conn.cursor()
-        cursor.execute('INSERT INTO categories (name) VALUES (?)', (category_name,))
+        cursor.execute('INSERT INTO categories (name, user_id) VALUES (?, ?)', 
+                      (category_name, current_user.id))
         conn.commit()
         new_id = cursor.lastrowid
         return jsonify({'id': new_id, 'name': category_name}), 200
@@ -142,25 +144,40 @@ def user_dashboard():
         conn = sqlite3.connect('daytabase.db')
         cursor = conn.cursor()
         
-        cursor.execute('SELECT * FROM categories')
+        # Get categories for the current user
+        cursor.execute('SELECT * FROM categories WHERE user_id = ?', (current_user.id,))
         categories = cursor.fetchall()
-        print("Categories:", categories)
+        print("Categories:", categories)  # Debug print
         
+        # Get tasks for the current user
         cursor.execute('''
         SELECT t.*, c.name as category_name 
         FROM tasks t 
         LEFT JOIN categories c ON t.category_id = c.id
+        WHERE t.user_id = ?
         ORDER BY t.id DESC
-        ''')
+        ''', (current_user.id,))
         tasks = cursor.fetchall()
-        print("Tasks with categories:", tasks)  # Debug print
+        print("Tasks:", tasks)  # Debug print
+        
+        # Get subtasks for the current user's tasks
+        cursor.execute('''
+        SELECT s.* 
+        FROM subtasks s
+        JOIN tasks t ON s.task_id = t.id
+        WHERE t.user_id = ?
+        ORDER BY s.task_id, s.level, s.id
+        ''', (current_user.id,))
+        subtasks = cursor.fetchall()
+        print("Subtasks:", subtasks)  # Debug print
         
         return render_template('user_dashboard.html', 
                              categories=categories,
-                             tasks=tasks)
+                             tasks=tasks,
+                             subtasks=subtasks)
     except Exception as e:
         print(f"Dashboard Error: {e}")
-        return "Error loading dashboard", 500
+        return f"Error loading dashboard: {str(e)}", 500
     finally:
         if conn:
             conn.close()
@@ -169,34 +186,36 @@ def user_dashboard():
 #CRUD
 #Create/Add task function
 @app.route('/add-task', methods=['POST'])
+@login_required
 def add_task():
     task_name = request.form.get('task')
     description = request.form.get('description') or None
     deadline = request.form.get('deadline') or None
     priority = request.form.get('priority')
-    category_id = request.form.get('category_id')  # Make sure this is passed correctly
+    category_id = request.form.get('category_id')
     start_time = request.form.get('start_time') or None
     end_time = request.form.get('end_time') or None
     
-    if not task_name or not priority or not category_id:  # Added category_id check
+    if not task_name or not priority or not category_id:
         return jsonify({'error': 'Task name, priority, and category are required'}), 400
         
     try:
         conn = sqlite3.connect('daytabase.db')
         cursor = conn.cursor()
         
-        # First verify the category exists
-        cursor.execute('SELECT id FROM categories WHERE id = ?', (category_id,))
+        # Verify the category belongs to the current user
+        cursor.execute('SELECT id FROM categories WHERE id = ? AND user_id = ?', 
+                      (category_id, current_user.id))
         if not cursor.fetchone():
             return jsonify({'error': 'Invalid category'}), 400
             
         cursor.execute('''
         INSERT INTO tasks (
             task, description, deadline, priority, 
-            category_id, start_time, end_time, done
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            category_id, start_time, end_time, done, user_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (task_name, description, deadline, priority, 
-              category_id, start_time, end_time, False))
+              category_id, start_time, end_time, False, current_user.id))
         conn.commit()
         new_id = cursor.lastrowid
         return jsonify({'id': new_id, 'task': task_name}), 200
@@ -215,16 +234,23 @@ def mark_task_done(task_id):
         conn = sqlite3.connect('daytabase.db')
         cursor = conn.cursor()
         
-        # Get current task status
-        cursor.execute("SELECT done FROM tasks WHERE id = ?", (task_id,))
-        current_status = cursor.fetchone()[0]
+        # Get current task status and verify ownership
+        cursor.execute("SELECT done FROM tasks WHERE id = ? AND user_id = ?", 
+                      (task_id, current_user.id))
+        result = cursor.fetchone()
         
-        # Toggle task status
+        if not result:
+            return jsonify({'error': 'Unauthorized'}), 403
+            
+        current_status = result[0]
         new_status = not current_status
-        cursor.execute("UPDATE tasks SET done = ? WHERE id = ?", (new_status, task_id))
+        
+        # Update task status
+        cursor.execute("UPDATE tasks SET done = ? WHERE id = ? AND user_id = ?", 
+                      (new_status, task_id, current_user.id))
         
         # Mark all subtasks with the same status
-        mark_subtasks_as_done(cursor, task_id, new_status)
+        mark_subtasks_as_done(cursor, task_id, new_status, current_user.id)
         
         conn.commit()
         return jsonify({'success': True})
@@ -235,21 +261,38 @@ def mark_task_done(task_id):
             conn.close()
 
 @app.route('/toggle-subtask/<int:subtask_id>')
+@login_required
 def mark_subtask_done(subtask_id):
     try:
         conn = sqlite3.connect('daytabase.db')
         cursor = conn.cursor()
         
-        # Get current subtask status
-        cursor.execute("SELECT done FROM subtasks WHERE id = ?", (subtask_id,))
-        current_status = cursor.fetchone()[0]
+        # Verify the subtask belongs to a task owned by the current user
+        cursor.execute('''
+            SELECT s.done FROM subtasks s
+            JOIN tasks t ON s.task_id = t.id
+            WHERE s.id = ? AND t.user_id = ?
+        ''', (subtask_id, current_user.id))
         
-        # Toggle subtask status
+        result = cursor.fetchone()
+        if not result:
+            return jsonify({'error': 'Unauthorized'}), 403
+            
+        current_status = result[0]
         new_status = not current_status
-        cursor.execute("UPDATE subtasks SET done = ? WHERE id = ?", (new_status, subtask_id))
+        
+        # Update the subtask status
+        cursor.execute('''
+            UPDATE subtasks SET done = ?
+            WHERE id = ? AND EXISTS (
+                SELECT 1 FROM tasks t 
+                WHERE t.id = subtasks.task_id 
+                AND t.user_id = ?
+            )
+        ''', (new_status, subtask_id, current_user.id))
         
         # Mark all child subtasks with the same status
-        mark_child_subtasks_as_done(cursor, subtask_id, new_status)
+        mark_child_subtasks_as_done(cursor, subtask_id, new_status, current_user.id)
         
         conn.commit()
         return jsonify({'success': True})
@@ -259,34 +302,51 @@ def mark_subtask_done(subtask_id):
         if conn:
             conn.close()
 
-def mark_subtasks_as_done(cursor, task_id, status):
-    # Mark all direct subtasks of the task
-    cursor.execute("UPDATE subtasks SET done = ? WHERE task_id = ?", (status, task_id))
+def mark_subtasks_as_done(cursor, task_id, status, user_id):
+    cursor.execute("""
+        UPDATE subtasks SET done = ? 
+        WHERE task_id = ?
+        AND EXISTS (
+            SELECT 1 FROM tasks t 
+            WHERE t.id = subtasks.task_id 
+            AND t.user_id = ?
+        )
+    """, (status, task_id, user_id))
     
     # Get all direct subtasks
-    cursor.execute("SELECT id FROM subtasks WHERE task_id = ?", (task_id,))
-    subtasks = cursor.fetchall()
+    cursor.execute("""
+        SELECT id FROM subtasks 
+        WHERE task_id = ?
+        AND EXISTS (
+            SELECT 1 FROM tasks t 
+            WHERE t.id = subtasks.task_id 
+            AND t.user_id = ?
+        )
+    """, (task_id, user_id))
     
-    # Recursively mark child subtasks
+    subtasks = cursor.fetchall()
     for subtask in subtasks:
-        mark_child_subtasks_as_done(cursor, subtask[0], status)
+        mark_child_subtasks_as_done(cursor, subtask[0], status, user_id)
 
-def mark_child_subtasks_as_done(cursor, parent_subtask_id, status):
-    # Mark all child subtasks using recursive CTE
+
+def mark_child_subtasks_as_done(cursor, parent_subtask_id, status, user_id):
     cursor.execute("""
         WITH RECURSIVE subtree AS (
-            SELECT id, parent_id 
-            FROM subtasks 
+            SELECT id FROM subtasks 
             WHERE parent_id = ?
+            AND EXISTS (
+                SELECT 1 FROM tasks t 
+                WHERE t.id = subtasks.task_id 
+                AND t.user_id = ?
+            )
             UNION ALL
-            SELECT s.id, s.parent_id
-            FROM subtasks s
+            SELECT s.id FROM subtasks s
             JOIN subtree st ON s.parent_id = st.id
         )
         UPDATE subtasks 
         SET done = ?
         WHERE id IN (SELECT id FROM subtree)
-    """, (parent_subtask_id, status))
+    """, (parent_subtask_id, user_id, status))
 
 #Create/Add sub-task function
 @app.route('/add-subtask', methods=['POST'])
@@ -309,9 +369,20 @@ def add_subtask():
         conn = sqlite3.connect('daytabase.db')
         cursor = conn.cursor()
         
+        # Verify the parent task belongs to the current user
+        cursor.execute('SELECT id FROM tasks WHERE id = ? AND user_id = ?', 
+                      (task_id, current_user.id))
+        if not cursor.fetchone():
+            return jsonify({'error': 'Unauthorized access to task'}), 403
+            
+        # If there's a parent subtask, verify it belongs to the specified task
         if parent_id:
-            cursor.execute('SELECT level FROM subtasks WHERE id = ?', (parent_id,))
-            parent_level = cursor.fetchone()[0]
+            cursor.execute('SELECT level FROM subtasks WHERE id = ? AND task_id = ?', 
+                         (parent_id, task_id))
+            parent_result = cursor.fetchone()
+            if not parent_result:
+                return jsonify({'error': 'Invalid parent subtask'}), 400
+            parent_level = parent_result[0]
             level = parent_level + 1
         else:
             level = 1
@@ -343,27 +414,37 @@ def add_subtask():
             conn.close()
 
 
+
+
 @app.route('/edit-task/<int:task_id>', methods=['POST', 'GET'])
+@login_required
 def edit_task(task_id):
     conn = sqlite3.connect('daytabase.db')
     try:
         cursor = conn.cursor()
         if request.method == 'GET':
-            cursor.execute('SELECT * FROM tasks WHERE id = ?', (task_id,))
+            cursor.execute('SELECT * FROM tasks WHERE id = ? AND user_id = ?', 
+                         (task_id, current_user.id))
             task = cursor.fetchone()
             return jsonify(task) if task else ('Task not found', 404)
             
         if request.method == 'POST':
+            # Verify task ownership
+            cursor.execute('SELECT id FROM tasks WHERE id = ? AND user_id = ?', 
+                         (task_id, current_user.id))
+            if not cursor.fetchone():
+                return jsonify({'error': 'Unauthorized'}), 403
+                
             task_data = request.form
             cursor.execute('''
             UPDATE tasks 
             SET task = ?, description = ?, deadline = ?, priority = ?, 
                 start_time = ?, end_time = ?, category_id = ?
-            WHERE id = ?
+            WHERE id = ? AND user_id = ?
             ''', (task_data['task'], task_data.get('description'), 
                   task_data.get('deadline'), task_data['priority'],
                   task_data.get('start_time'), task_data.get('end_time'),
-                  task_data.get('category_id'), task_id))
+                  task_data.get('category_id'), task_id, current_user.id))
             conn.commit()
             return jsonify({'success': True})
     except sqlite3.Error as e:
@@ -372,27 +453,43 @@ def edit_task(task_id):
     finally:
         conn.close()
 
+
 @app.route('/edit-subtask/<int:subtask_id>', methods=['POST', 'GET'])
+@login_required
 def edit_subtask(subtask_id):
     conn = sqlite3.connect('daytabase.db')
     try:
         cursor = conn.cursor()
+        
+        # First verify the subtask belongs to a task owned by the current user
+        cursor.execute('''
+            SELECT s.* FROM subtasks s
+            JOIN tasks t ON s.task_id = t.id
+            WHERE s.id = ? AND t.user_id = ?
+        ''', (subtask_id, current_user.id))
+        
         if request.method == 'GET':
-            cursor.execute('SELECT * FROM subtasks WHERE id = ?', (subtask_id,))
             subtask = cursor.fetchone()
             return jsonify(subtask) if subtask else ('Subtask not found', 404)
             
         if request.method == 'POST':
+            if not cursor.fetchone():
+                return jsonify({'error': 'Unauthorized'}), 403
+                
             subtask_data = request.form
             cursor.execute('''
             UPDATE subtasks 
             SET subtask = ?, description = ?, deadline = ?, priority = ?,
                 start_time = ?, end_time = ?, category_id = ?
-            WHERE id = ?
+            WHERE id = ? AND EXISTS (
+                SELECT 1 FROM tasks t 
+                WHERE t.id = subtasks.task_id 
+                AND t.user_id = ?
+            )
             ''', (subtask_data['subtask'], subtask_data.get('description'),
                   subtask_data.get('deadline'), subtask_data['priority'],
                   subtask_data.get('start_time'), subtask_data.get('end_time'),
-                  subtask_data.get('category_id'), subtask_id))
+                  subtask_data.get('category_id'), subtask_id, current_user.id))
             conn.commit()
             return jsonify({'success': True})
     except sqlite3.Error as e:
@@ -403,12 +500,20 @@ def edit_subtask(subtask_id):
 
 
 @app.route('/delete-task/<int:task_id>')
+@login_required
 def delete_task(task_id):
     try:
         conn = sqlite3.connect('daytabase.db')
         c = conn.cursor()
+        # Verify task ownership before deletion
+        c.execute("SELECT id FROM tasks WHERE id = ? AND user_id = ?", 
+                 (task_id, current_user.id))
+        if not c.fetchone():
+            return jsonify({'error': 'Unauthorized'}), 403
+            
         c.execute("DELETE FROM subtasks WHERE task_id = ?", (task_id,))
-        c.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        c.execute("DELETE FROM tasks WHERE id = ? AND user_id = ?", 
+                 (task_id, current_user.id))
         conn.commit()
         return jsonify({'success': True})
     except sqlite3.Error as e:
@@ -417,12 +522,42 @@ def delete_task(task_id):
     finally:
         conn.close()
 
+
 @app.route('/delete-subtask/<int:subtask_id>')
+@login_required
 def delete_subtask(subtask_id):
     try:
         conn = sqlite3.connect('daytabase.db')
         c = conn.cursor()
-        c.execute("WITH RECURSIVE subtree AS (SELECT id FROM subtasks WHERE id = ? UNION ALL SELECT s.id FROM subtasks s INNER JOIN subtree st ON s.parent_id = st.id) DELETE FROM subtasks WHERE id IN subtree", (subtask_id,))
+        
+        # Verify the subtask belongs to a task owned by the current user
+        c.execute('''
+            SELECT s.id FROM subtasks s
+            JOIN tasks t ON s.task_id = t.id
+            WHERE s.id = ? AND t.user_id = ?
+        ''', (subtask_id, current_user.id))
+        
+        if not c.fetchone():
+            return jsonify({'error': 'Unauthorized'}), 403
+            
+        # Delete the subtask and its children only if authorized
+        c.execute("""
+            WITH RECURSIVE subtree AS (
+                SELECT id FROM subtasks 
+                WHERE id = ? 
+                AND EXISTS (
+                    SELECT 1 FROM tasks t 
+                    WHERE t.id = subtasks.task_id 
+                    AND t.user_id = ?
+                )
+                UNION ALL
+                SELECT s.id FROM subtasks s
+                INNER JOIN subtree st ON s.parent_id = st.id
+            ) 
+            DELETE FROM subtasks 
+            WHERE id IN subtree
+        """, (subtask_id, current_user.id))
+        
         conn.commit()
         return jsonify({'success': True})
     except sqlite3.Error as e:
@@ -430,7 +565,6 @@ def delete_subtask(subtask_id):
         return jsonify({'error': str(e)}), 400
     finally:
         conn.close()
-
 
 @app.route('/', methods=['GET', 'POST'])
 def home():

@@ -6,72 +6,83 @@ def create_tables():
         conn = sqlite3.connect('daytabase.db')
         cursor = conn.cursor()
         
-        #users/customers table
-        conn.execute('''
-        CREATE TABLE IF NOT EXISTS users(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_name TEXT NOT NULL,
-        email TEXT NOT NULL,
-        password TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        # First, drop existing tables (careful with this in production!)
+        cursor.executescript('''
+            DROP TABLE IF EXISTS subtasks;
+            DROP TABLE IF EXISTS tasks;
+            DROP TABLE IF EXISTS categories;
+            DROP TABLE IF EXISTS users;
+        ''')
         
-                    )
-    ''')
+        # Create users table
+        cursor.execute('''
+        CREATE TABLE users(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_name TEXT NOT NULL UNIQUE,
+            email TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
         
-        #categories table
-        conn.execute('''
-        CREATE TABLE IF NOT EXISTS categories (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL UNIQUE
-                    )
-    ''')
+        # Create categories table with user_id
+        cursor.execute('''
+        CREATE TABLE categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            UNIQUE(name, user_id)
+        )
+        ''')
         
-        #tasks table
-        conn.execute('''
-        CREATE TABLE IF NOT EXISTS tasks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        task TEXT NOT NULL,
-        description TEXT,
-        deadline DATETIME,
-        priority TEXT CHECK(priority IN('low', 'medium', 'high', 'deepwork')) NOT NULL,
-        start_time TEXT,
-        end_time TEXT,
-        done BOOLEAN DEFAULT 0,
-        category_id INTEGER,
-        FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+        # Create tasks table with user_id
+        cursor.execute('''
+        CREATE TABLE tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task TEXT NOT NULL,
+            description TEXT,
+            deadline DATETIME,
+            priority TEXT CHECK(priority IN('low', 'medium', 'high', 'deepwork')) NOT NULL,
+            start_time TEXT,
+            end_time TEXT,
+            done BOOLEAN DEFAULT 0,
+            category_id INTEGER,
+            user_id INTEGER NOT NULL,
+            FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        ''')
         
-                    )
-    ''')
+        # Create subtasks table
+        cursor.execute('''
+        CREATE TABLE subtasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subtask TEXT NOT NULL,
+            description TEXT,
+            deadline DATETIME,
+            priority TEXT CHECK(priority IN ('low', 'medium', 'high', 'deepwork')) NOT NULL,
+            start_time TEXT,
+            end_time TEXT,
+            done BOOLEAN DEFAULT 0,
+            category_id INTEGER,
+            task_id INTEGER NOT NULL,
+            parent_id INTEGER,
+            level INTEGER NOT NULL,
+            FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
+            FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+            FOREIGN KEY (parent_id) REFERENCES subtasks(id) ON DELETE CASCADE
+        )
+        ''')
         
-        #subtasks table
-        conn.execute('''
-        CREATE TABLE IF NOT EXISTS subtasks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        subtask TEXT NOT NULL,
-        description TEXT,
-        deadline DATETIME,
-        priority TEXT CHECK(priority IN ('low', 'medium', 'high', 'deepwork')) NOT NULL,
-        start_time TEXT,
-        end_time TEXT,
-        done BOOLEAN DEFAULT 0,
-        category_id INTEGER,
-        task_id INTEGER NOT NULL,
-        parent_id INTEGER,
-        level INTEGER NOT NULL,
-        FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
-        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
-        FOREIGN KEY (parent_id) REFERENCES subtasks(id) ON DELETE CASCADE
-                     )
-''')
-    
+        print("Tables created successfully!")
+        conn.commit()
+        
     except sqlite3.Error as e:
-        print(F"Error occured as: {e}")
+        print(f"Error occurred: {e}")
     finally:
         if conn:
-            conn.commit()    
             conn.close()
-    #task prio
-
 
 if __name__ == "__main__":
     create_tables()

@@ -3,6 +3,7 @@
 {% block title %}{{ current_user.username }}'s Workspace{% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 <style>
     /* Theme Variables */
     :root {
@@ -75,6 +76,31 @@
     bottom: 0;
     background: rgba(0,0,0,0.5);
     z-index: 999;
+}
+
+.task-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    gap: 8px;
+    z-index: 2;
+}
+
+.task-controls button {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 4px;
+}
+
+.task-controls button:hover {
+    color: var(--accent);
+}
+
+.task-checkbox {
+    cursor: pointer;
 }
 
 /* Ensure the subtask form is properly positioned */
@@ -673,6 +699,7 @@
     <h1 class="workspace-title">{{ current_user.username }}'s Workspace</h1>
     
     <div class="zone-controls">
+        <button class="zone-btn" onclick="backToZones()" id="backToZonesBtn" style="display: none;">Back to Zones</button>
         <button class="zone-btn" onclick="showAddZoneForm()">Add a Zone</button>
         <button class="zone-btn" onclick="showTaskForm()">Add Task</button>
         <div class="zone-dropdown">
@@ -721,7 +748,7 @@
         <button type="button" class="zone-btn" onclick="hideAddZoneForm()">Cancel</button>
     </form>
 
-    <!-- Tasks Grid -->
+<!-- Tasks Grid -->
 {% macro render_subtask(subtask, all_subtasks) %}
 <div class="subtask-branch">
     <div class="task-bubble" 
@@ -729,6 +756,20 @@
          data-task-id="{{ subtask[0] }}"
          data-category-id="{{ subtask[8] }}">
         <div class="connector connector-vertical"></div>
+        <div class="task-controls" onclick="event.stopPropagation()">
+            <input type="checkbox" 
+                   class="task-checkbox" 
+                   {% if subtask[7] %}checked{% endif %}
+                   onchange="toggleTaskStatus({{ subtask[0] }}, this)">
+            
+            <button class="task-edit" onclick="editTask({{ subtask[0] }})">
+                <i class="fas fa-pencil-alt"></i>
+            </button>
+            
+            <button class="task-delete" onclick="deleteTask({{ subtask[0] }})">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
         <div class="task-front">
             <h3 class="task-name">{{ subtask[1] }}</h3>
             <div class="task-priority priority-{{ subtask[4] }}">Priority: {{ subtask[4] }}</div>
@@ -766,10 +807,24 @@
     {% for task in tasks %}
     <div class="task-group">
         <div class="task-bubble" 
-             onclick="toggleFlip(this)" 
-             data-task-id="{{ task[0] }}"
-             data-category-id="{{ task[8] }}">
-            <div class="task-front">
+        onclick="toggleFlip(this)" 
+        data-task-id="{{ task[0] }}"
+        data-category-id="{{ task[8] }}">
+        <div class="task-controls" onclick="event.stopPropagation()">
+            <input type="checkbox" 
+                   class="task-checkbox" 
+                   {% if task[7] %}checked{% endif %}
+                   onchange="toggleTaskStatus({{ task[0] }}, this)">
+            
+            <button class="task-edit" onclick="editTask({{ task[0] }})">
+                <i class="fas fa-pencil-alt"></i>
+            </button>
+            
+            <button class="task-delete" onclick="deleteTask({{ task[0] }})">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+       <div class="task-front">
                 <h3 class="task-name">{{ task[1] }}</h3>
                 <div class="task-priority priority-{{ task[4] }}">Priority: {{ task[4] }}</div>
             </div>
@@ -913,27 +968,6 @@ function toggleDuration(checkbox) {
     }
 }
 
-// Add event listener for task form
-document.getElementById('taskForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    
-    try {
-        const response = await fetch('/add-task', {
-            method: 'POST',
-            body: formData
-        });
-        if (response.ok) {
-            // Store the current zone before reload
-            const currentZone = document.getElementById('zoneName').textContent;
-            localStorage.setItem('currentZone', currentZone);
-            window.location.reload();
-        }
-    } catch (error) {
-        console.error('Error:', error);
-    }
-});
-
     // Toggle task bubble flip
     function toggleFlip(bubble) {
         bubble.classList.toggle('is-flipped');
@@ -1052,38 +1086,107 @@ function hideSubtaskForm() {
     form.reset();
 }
 
+function backToZones() {
+    // Hide task view
+    const currentZone = document.getElementById('currentZone');
+    const bubbleGrid = document.querySelector('.bubble-grid');
+    currentZone.classList.remove('active');
+    bubbleGrid.style.display = 'none';
+    
+    // Show zones grid
+    const zonesGrid = document.querySelector('.zones-grid');
+    zonesGrid.style.display = 'grid';
+    
+    // Hide back button
+    document.getElementById('backToZonesBtn').style.display = 'none';
+    
+    // Clear stored zone
+    localStorage.removeItem('currentZone');
+}
+
 function switchZone(zoneName) {
     // Update zone name display
     document.getElementById('zoneName').textContent = zoneName;
     
-    // Show the current zone indicator and bubble grid
-    document.getElementById('currentZone').classList.add('active');
-    document.querySelector('.bubble-grid').classList.add('active');
+    // Show the current zone indicator
+    const currentZone = document.getElementById('currentZone');
+    const bubbleGrid = document.querySelector('.bubble-grid');
+    const zonesGrid = document.querySelector('.zones-grid');
+    
+    currentZone.classList.add('active');
+    bubbleGrid.style.display = 'flex';
+    zonesGrid.style.display = 'none';
+    
+    // Show back button
+    document.getElementById('backToZonesBtn').style.display = 'inline-block';
+    
+    // Rest of your existing switchZone code...
     
     // Get all task groups
     const taskGroups = document.querySelectorAll('.task-group');
-    
     taskGroups.forEach(group => {
-        const taskBubble = group.querySelector('.task-bubble');
-        const categoryId = taskBubble.getAttribute('data-category-id');
-        const categoryName = getCategoryName(categoryId);
-        
-        if (zoneName === 'All Tasks' || categoryName === zoneName) {
-            group.style.display = 'flex';
-            group.style.animation = 'fadeIn 0.3s forwards';
-        } else {
-            group.style.display = 'none';
-        }
+        // ... your existing task group handling ...
     });
 
     // Store current zone in localStorage
     localStorage.setItem('currentZone', zoneName);
-
-    // Hide the zones grid
-    document.querySelector('.zones-grid').style.display = 'none';
-
+    
     return false;
 }
+
+document.querySelector('a[href="/logout"]').addEventListener('click', () => {
+    localStorage.removeItem('currentZone');
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const currentZone = document.getElementById('currentZone');
+    const bubbleGrid = document.querySelector('.bubble-grid');
+    const zonesGrid = document.querySelector('.zones-grid');
+    const backButton = document.getElementById('backToZonesBtn');
+    
+    const hasCategories = document.querySelectorAll('.zone-box:not(.add-zone-box)').length > 0;
+    const lastZone = localStorage.getItem('currentZone');
+    
+    if (lastZone && hasCategories) {
+        currentZone.classList.add('active');
+        bubbleGrid.style.display = 'flex';
+        zonesGrid.style.display = 'none';
+        backButton.style.display = 'inline-block';
+        switchZone(lastZone);
+    } else {
+        currentZone.classList.remove('active');
+        currentZone.style.display = 'none';
+        bubbleGrid.style.display = 'none';
+        zonesGrid.style.display = hasCategories ? 'grid' : 'none';
+        backButton.style.display = 'none';
+        localStorage.removeItem('currentZone');
+    }
+});
+
+document.getElementById('taskForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    
+    try {
+        const response = await fetch('/add-task', {
+            method: 'POST',
+            body: formData
+        });
+        if (response.ok) {
+            // Store the current zone before reload
+            const currentZone = document.getElementById('zoneName').textContent;
+            localStorage.setItem('currentZone', currentZone);
+            window.location.reload();
+        } else {
+            const error = await response.json();
+            console.error('Error:', error);
+            alert(error.error || 'An error occurred while adding the task');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('An error occurred while adding the task');
+    }
+});
 
 function getCategoryName(categoryId) {
     // First try to find in dropdown
@@ -1098,35 +1201,113 @@ function getCategoryName(categoryId) {
     return null;
 }
 
-// Add this to your zone dropdown HTML generation
-document.addEventListener('DOMContentLoaded', function() {
-    // Hide tasks and current zone indicator by default
-    const currentZone = document.getElementById('currentZone');
-    const bubbleGrid = document.querySelector('.bubble-grid');
-    const zonesGrid = document.querySelector('.zones-grid');
+// Toggle task status
+async function toggleTaskStatus(taskId, checkbox) {
+    try {
+        const response = await fetch(`/toggle-task/${taskId}`);
+        if (response.ok) {
+            window.location.reload(); // Reload to update all related subtasks
+        } else {
+            checkbox.checked = !checkbox.checked; // Revert on error
+            console.error('Failed to toggle task status');
+        }
+    } catch (error) {
+        checkbox.checked = !checkbox.checked; // Revert on error
+        console.error('Error:', error);
+    }
+}
+
+// Edit task
+async function editTask(taskId) {
+    const form = document.getElementById('taskForm');
+    form.querySelector('h2').textContent = 'Edit Task'; // Change form title
     
-    // Initial state setup
-    currentZone.style.display = 'none';
-    bubbleGrid.style.display = 'none';
-    zonesGrid.style.display = 'grid';  // Changed to grid
-
-    // Add "All Tasks" option to zone dropdown
-    const dropdownContent = document.querySelector('.zone-dropdown-content');
-    if (!dropdownContent.querySelector('[data-category-id="all"]')) {
-        const allTasksLink = document.createElement('a');
-        allTasksLink.href = '#';
-        allTasksLink.onclick = () => switchZone('All Tasks');
-        allTasksLink.textContent = 'All Tasks';
-        allTasksLink.setAttribute('data-category-id', 'all');
-        dropdownContent.insertBefore(allTasksLink, dropdownContent.firstChild);
+    try {
+        const response = await fetch(`/edit-task/${taskId}`, {
+            method: 'GET'
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to fetch task data');
+        }
+        
+        const task = await response.json();
+        
+        // Populate the form with existing data
+        form.querySelector('[name="task"]').value = task[1];
+        form.querySelector('[name="description"]').value = task[2] || '';
+        form.querySelector('[name="deadline"]').value = task[3] || '';
+        form.querySelector('[name="priority"]').value = task[4];
+        form.querySelector('[name="category_id"]').value = task[8];
+        
+        if (task[5] && task[6]) {
+            const durationCheckbox = form.querySelector('.duration-container input[type="checkbox"]');
+            durationCheckbox.checked = true;
+            const durationFields = form.querySelector('.duration-fields');
+            durationFields.classList.remove('hidden');
+            form.querySelector('[name="start_time"]').value = task[5];
+            form.querySelector('[name="end_time"]').value = task[6];
+        }
+        
+        // Modify form submission to handle update
+        const originalSubmitHandler = form.onsubmit;
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            
+            try {
+                const response = await fetch(`/edit-task/${taskId}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    alert('Failed to update task');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error updating task');
+            }
+        };
+        
+        // Show the form
+        form.style.display = 'block';
+        document.getElementById('taskFormOverlay').style.display = 'block';
+        
+        // Restore original submit handler when form is closed
+        const closeButton = form.querySelector('button[type="button"]');
+        closeButton.onclick = () => {
+            form.onsubmit = originalSubmitHandler;
+            hideTaskForm();
+        };
+        
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error loading task data');
     }
+}
 
-    // Only switch zone if it's not the initial load
-    const lastZone = localStorage.getItem('currentZone');
-    if (lastZone && lastZone !== 'initial') {
-        switchZone(lastZone);
+// Delete task
+async function deleteTask(taskId) {
+    if (!confirm('Are you sure you want to delete this task and all its subtasks?')) {
+        return;
     }
-});
+    
+    try {
+        const response = await fetch(`/delete-task/${taskId}`);
+        if (response.ok) {
+            window.location.reload(); // Reload to remove the task and all subtasks
+        } else {
+            throw new Error('Failed to delete task');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error deleting task');
+    }
+}
+
 
 // Initialize with 'initial' state
 // Add event listener for subtask form
